@@ -37,11 +37,11 @@
 </head>
 <body>
     <h1>Redirect Checker</h1>
-    <p class="warning">Note: Visit <a href="https://cors-anywhere.herokuapp.com/" target="_blank">cors-anywhere.herokuapp.com</a> to enable the proxy temporarily.</p>
+    <p class="warning">Important: Before testing, visit <a href="https://cors-anywhere.herokuapp.com/" target="_blank">cors-anywhere.herokuapp.com</a> and click 'Request temporary access to the demo server'. This enables the proxy for ~30 minutes.</p>
     <label for="domain">Domain:</label>
     <input type="text" id="domain" value="https://barrownew2024.wpenginepowered.com" size="50"><br><br>
     <label for="paths">Paths (format: path,expectedUrl per line):</label><br>
-    <textarea id="paths" rows="10" cols="80" placeholder="/page1,https://example.com/page1\n/page2,https://example.com/page2"></textarea><br>
+    <textarea id="paths" rows="10" cols="80" placeholder="/page1,https://example.com/page1\n/programs-that-save-lives/epilepsy-2/,https://example.com/epilepsy"></textarea><br>
     <button onclick="checkRedirects()">Check Redirects</button>
     <table id="results">
         <thead>
@@ -79,17 +79,25 @@
                 const [path, expectedUrl = ""] = line.split(",").map(s => s.trim());
                 if (!path) continue;
 
-                const url = domain + path;
-                const proxiedUrl = proxyUrl + url; // Use proxy to bypass CORS
+                const originalUrl = domain + path;
+                const proxiedUrl = proxyUrl + originalUrl; // Proxy prefixed to full URL
                 totalLinks++;
                 const row = document.createElement("tr");
                 row.innerHTML = `<td>${path}</td><td>Loading...</td><td>Loading...</td><td>${expectedUrl}</td><td></td>`;
                 resultsBody.appendChild(row);
 
                 try {
-                    const response = await fetch(proxiedUrl, { redirect: "manual" });
+                    console.log(`Fetching: ${proxiedUrl}`); // Debug: Verify URL
+                    const response = await fetch(proxiedUrl, { 
+                        redirect: "manual",
+                        headers: { "Origin": window.location.origin }
+                    });
                     const statusCode = response.status;
-                    const finalUrl = response.headers.get("Location") || "No redirection";
+                    let finalUrl = response.headers.get("Location") || "No redirection";
+
+                    if (finalUrl && !finalUrl.startsWith("http")) {
+                        finalUrl = new URL(finalUrl, domain).href;
+                    }
 
                     row.cells[1].textContent = statusCode;
                     row.cells[2].textContent = finalUrl;
@@ -107,11 +115,21 @@
 
                     reportData.push([path, statusCode, finalUrl, expectedUrl, match ? "True" : "False"]);
                 } catch (e) {
-                    row.cells[1].textContent = "Error";
-                    row.cells[2].textContent = e.message || "Request failed (CORS or network issue)";
-                    row.classList.add("error");
-                    errors++;
-                    reportData.push([path, "Error", e.message || "Request failed", expectedUrl, "N/A"]);
+                    console.error(`Error for ${proxiedUrl}: ${e.message}`);
+                    try {
+                        await fetch(originalUrl, { mode: "no-cors" });
+                        row.cells[1].textContent = "Unknown";
+                        row.cells[2].textContent = "CORS blocked; proxy may be inactive";
+                        row.classList.add("error");
+                        errors++;
+                        reportData.push([path, "Unknown", "CORS blocked", expectedUrl, "N/A"]);
+                    } catch (fallbackError) {
+                        row.cells[1].textContent = "Error";
+                        row.cells[2].textContent = e.message || "Request failed (CORS/proxy issue)";
+                        row.classList.add("error");
+                        errors++;
+                        reportData.push([path, "Error", e.message || "Request failed", expectedUrl, "N/A"]);
+                    }
                 }
             }
 
@@ -122,7 +140,7 @@
                 <p>Matches (True Count): ${trueCount}</p>
             `;
             downloadBtn.style.display = "block";
-            downloadBtn.dataset.report = JSON.stringify(reportData); // Store report data
+            downloadBtn.dataset.report = JSON.stringify(reportData);
         }
 
         function downloadReport() {
