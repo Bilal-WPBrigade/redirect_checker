@@ -29,10 +29,15 @@
             margin: 10px 0;
             padding: 5px 10px;
         }
+        .warning {
+            color: orange;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <h1>Redirect Checker</h1>
+    <p class="warning">Note: Visit <a href="https://cors-anywhere.herokuapp.com/" target="_blank">cors-anywhere.herokuapp.com</a> to enable the proxy temporarily.</p>
     <label for="domain">Domain:</label>
     <input type="text" id="domain" value="https://barrownew2024.wpenginepowered.com" size="50"><br><br>
     <label for="paths">Paths (format: path,expectedUrl per line):</label><br>
@@ -63,6 +68,7 @@
             const downloadBtn = document.getElementById("downloadBtn");
             resultsBody.innerHTML = ""; // Clear previous results
 
+            const proxyUrl = "https://cors-anywhere.herokuapp.com/";
             let totalLinks = 0;
             let correctRedirects = 0;
             let errors = 0;
@@ -74,13 +80,14 @@
                 if (!path) continue;
 
                 const url = domain + path;
+                const proxiedUrl = proxyUrl + url; // Use proxy to bypass CORS
                 totalLinks++;
                 const row = document.createElement("tr");
                 row.innerHTML = `<td>${path}</td><td>Loading...</td><td>Loading...</td><td>${expectedUrl}</td><td></td>`;
                 resultsBody.appendChild(row);
 
                 try {
-                    const response = await fetch(url, { redirect: "manual" });
+                    const response = await fetch(proxiedUrl, { redirect: "manual" });
                     const statusCode = response.status;
                     const finalUrl = response.headers.get("Location") || "No redirection";
 
@@ -101,7 +108,7 @@
                     reportData.push([path, statusCode, finalUrl, expectedUrl, match ? "True" : "False"]);
                 } catch (e) {
                     row.cells[1].textContent = "Error";
-                    row.cells[2].textContent = e.message || "Request failed";
+                    row.cells[2].textContent = e.message || "Request failed (CORS or network issue)";
                     row.classList.add("error");
                     errors++;
                     reportData.push([path, "Error", e.message || "Request failed", expectedUrl, "N/A"]);
