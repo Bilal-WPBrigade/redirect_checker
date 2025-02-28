@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Redirect Checker</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .success {
+            background-color: lightgreen;
+        }
+        .error {
+            background-color: #f4cccc;
+        }
+        button {
+            margin: 10px 0;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Redirect Checker</h1>
+    <label for="domain">Domain:</label>
+    <input type="text" id="domain" value="https://barrownew2024.wpenginepowered.com" size="50"><br><br>
+    <label for="paths">Paths (format: path,expectedUrl per line):</label><br>
+    <textarea id="paths" rows="10" cols="80" placeholder="/page1,https://example.com/page1\n/page2,https://example.com/page2"></textarea><br>
+    <button onclick="checkRedirects()">Check Redirects</button>
+    <table id="results">
+        <thead>
+            <tr>
+                <th>Path</th>
+                <th>Status Code</th>
+                <th>Final URL</th>
+                <th>Expected URL</th>
+                <th>Match?</th>
+            </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+    </table>
+    <div id="summary"></div>
+    <button id="downloadBtn" style="display:none;" onclick="downloadReport()">Download Report (CSV)</button>
+
+    <script>
+        async function checkRedirects() {
+            const domain = document.getElementById("domain").value.trim();
+            const pathsInput = document.getElementById("paths").value.trim();
+            const lines = pathsInput.split("\n").filter(line => line);
+            const resultsBody = document.getElementById("resultsBody");
+            const summaryDiv = document.getElementById("summary");
+            const downloadBtn = document.getElementById("downloadBtn");
+            resultsBody.innerHTML = ""; // Clear previous results
+
+            let totalLinks = 0;
+            let correctRedirects = 0;
+            let errors = 0;
+            let trueCount = 0;
+            const reportData = [["Path", "Status Code", "Final URL", "Expected URL", "Match?"]];
+
+            for (const line of lines) {
+                const [path, expectedUrl = ""] = line.split(",").map(s => s.trim());
+                if (!path) continue;
+
+                const url = domain + path;
+                totalLinks++;
+                const row = document.createElement("tr");
+                row.innerHTML = `<td>${path}</td><td>Loading...</td><td>Loading...</td><td>${expectedUrl}</td><td></td>`;
+                resultsBody.appendChild(row);
+
+                try {
+                    const response = await fetch(url, { redirect: "manual" });
+                    const statusCode = response.status;
+                    const finalUrl = response.headers.get("Location") || "No redirection";
+
+                    row.cells[1].textContent = statusCode;
+                    row.cells[2].textContent = finalUrl;
+
+                    if (statusCode === 301) {
+                        row.classList.add("success");
+                        correctRedirects++;
+                    } else {
+                        row.classList.add("error");
+                    }
+
+                    const match = finalUrl === expectedUrl && expectedUrl !== "";
+                    row.cells[4].textContent = expectedUrl ? (match ? "True" : "False") : "N/A";
+                    if (match) trueCount++;
+
+                    reportData.push([path, statusCode, finalUrl, expectedUrl, match ? "True" : "False"]);
+                } catch (e) {
+                    row.cells[1].textContent = "Error";
+                    row.cells[2].textContent = e.message || "Request failed";
+                    row.classList.add("error");
+                    errors++;
+                    reportData.push([path, "Error", e.message || "Request failed", expectedUrl, "N/A"]);
+                }
+            }
+
+            summaryDiv.innerHTML = `
+                <p>Total Links Tested: ${totalLinks}</p>
+                <p>Correct 301 Redirects: ${correctRedirects}</p>
+                <p>Errors: ${errors}</p>
+                <p>Matches (True Count): ${trueCount}</p>
+            `;
+            downloadBtn.style.display = "block";
+            downloadBtn.dataset.report = JSON.stringify(reportData); // Store report data
+        }
+
+        function downloadReport() {
+            const reportData = JSON.parse(document.getElementById("downloadBtn").dataset.report);
+            const csv = reportData.map(row => row.join(",")).join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "redirect_report.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
