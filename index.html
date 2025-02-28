@@ -37,11 +37,11 @@
 </head>
 <body>
     <h1>Redirect Checker</h1>
-    <p class="warning">Important: Before testing, visit <a href="https://cors-anywhere.herokuapp.com/" target="_blank">cors-anywhere.herokuapp.com</a> and click 'Request temporary access to the demo server'. This enables the proxy for ~30 minutes.</p>
+    <p class="warning">Note: Using allorigins.win proxy. If errors persist, the target server may block proxy requests.</p>
     <label for="domain">Domain:</label>
     <input type="text" id="domain" value="https://barrownew2024.wpenginepowered.com" size="50"><br><br>
     <label for="paths">Paths (format: path,expectedUrl per line):</label><br>
-    <textarea id="paths" rows="10" cols="80" placeholder="/page1,https://example.com/page1\n/programs-that-save-lives/epilepsy-2/,https://example.com/epilepsy"></textarea><br>
+    <textarea id="paths" rows="10" cols="80" placeholder="/page1,https://example.com/page1\n/programs-that-save-lives/overview/,https://example.com/overview"></textarea><br>
     <button onclick="checkRedirects()">Check Redirects</button>
     <table id="results">
         <thead>
@@ -68,7 +68,7 @@
             const downloadBtn = document.getElementById("downloadBtn");
             resultsBody.innerHTML = ""; // Clear previous results
 
-            const proxyUrl = "https://cors-anywhere.herokuapp.com/";
+            const proxyUrl = "https://api.allorigins.win/raw?url=";
             let totalLinks = 0;
             let correctRedirects = 0;
             let errors = 0;
@@ -80,7 +80,7 @@
                 if (!path) continue;
 
                 const originalUrl = domain + path;
-                const proxiedUrl = proxyUrl + originalUrl; // Proxy prefixed to full URL
+                const proxiedUrl = proxyUrl + encodeURIComponent(originalUrl); // Encode URL for proxy
                 totalLinks++;
                 const row = document.createElement("tr");
                 row.innerHTML = `<td>${path}</td><td>Loading...</td><td>Loading...</td><td>${expectedUrl}</td><td></td>`;
@@ -90,7 +90,9 @@
                     console.log(`Fetching: ${proxiedUrl}`); // Debug: Verify URL
                     const response = await fetch(proxiedUrl, { 
                         redirect: "manual",
-                        headers: { "Origin": window.location.origin }
+                        headers: { 
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" 
+                        }
                     });
                     const statusCode = response.status;
                     let finalUrl = response.headers.get("Location") || "No redirection";
@@ -116,20 +118,11 @@
                     reportData.push([path, statusCode, finalUrl, expectedUrl, match ? "True" : "False"]);
                 } catch (e) {
                     console.error(`Error for ${proxiedUrl}: ${e.message}`);
-                    try {
-                        await fetch(originalUrl, { mode: "no-cors" });
-                        row.cells[1].textContent = "Unknown";
-                        row.cells[2].textContent = "CORS blocked; proxy may be inactive";
-                        row.classList.add("error");
-                        errors++;
-                        reportData.push([path, "Unknown", "CORS blocked", expectedUrl, "N/A"]);
-                    } catch (fallbackError) {
-                        row.cells[1].textContent = "Error";
-                        row.cells[2].textContent = e.message || "Request failed (CORS/proxy issue)";
-                        row.classList.add("error");
-                        errors++;
-                        reportData.push([path, "Error", e.message || "Request failed", expectedUrl, "N/A"]);
-                    }
+                    row.cells[1].textContent = "Error";
+                    row.cells[2].textContent = e.message || "Request failed (proxy blocked?)";
+                    row.classList.add("error");
+                    errors++;
+                    reportData.push([path, "Error", e.message || "Request failed", expectedUrl, "N/A"]);
                 }
             }
 
